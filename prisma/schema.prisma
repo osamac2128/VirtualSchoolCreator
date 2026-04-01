@@ -1,0 +1,176 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model School {
+  id        String    @id @default(cuid())
+  name      String
+  domain    String?   // for SSO
+  createdAt DateTime  @default(now())
+
+  users    User[]
+  courses  Course[]
+}
+
+model User {
+  id          String    @id @default(cuid())
+  supabaseId  String    @unique
+  email       String    @unique
+  name        String
+  role        UserRole
+  schoolId    String
+  school      School    @relation(fields: [schoolId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  memberships Membership[]
+  progress    StudentProgress[]
+
+  // Parent-Student Relations
+  children ParentStudent[] @relation("ParentRelation")
+  parents  ParentStudent[] @relation("StudentRelation")
+}
+
+model ParentStudent {
+  id        String   @id @default(cuid())
+  parentId  String
+  studentId String
+  createdAt DateTime @default(now())
+
+  parent  User @relation("ParentRelation", fields: [parentId], references: [id])
+  student User @relation("StudentRelation", fields: [studentId], references: [id])
+
+  @@unique([parentId, studentId])
+}
+
+model Membership {
+  id        String       @id @default(cuid())
+  userId    String
+  courseId  String?
+  role      MembershipRole
+  user      User         @relation(fields: [userId], references: [id])
+  course    Course?      @relation(fields: [courseId], references: [id])
+}
+
+model Course {
+  id            String       @id @default(cuid())
+  atlasId       String?      // traceability
+  name          String
+  gradeLevel    Int
+  track         Track        @default(STANDARD)
+  schoolId      String
+  aeroStandards Json[]       // [{code: "ELA.11.RL.1", desc: "..."}]
+  totalWeeks    Int
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  school        School       @relation(fields: [schoolId], references: [id])
+  themes        LearningTheme[]
+  memberships   Membership[]
+  progress      StudentProgress[]
+
+  @@index([schoolId])
+}
+
+model LearningTheme {
+  id            String   @id @default(cuid())
+  courseId      String
+  title         String
+  durationWeeks Int
+  aeroAlignment Json[]
+
+  course Course @relation(fields: [courseId], references: [id])
+  weeks  Week[]
+}
+
+model Week {
+  id          String  @id @default(cuid())
+  themeId     String
+  courseId    String? // Optional but useful for indexing
+  weekNumber  Int
+  focus       String
+  objectives  Json[]  // [{text, aeroCode}]
+  activities  Json[]  // AI-generated or Atlas
+  assessment  Json?   // {formative: "...", summative: "..."}
+
+  theme     LearningTheme    @relation(fields: [themeId], references: [id])
+  resources Resource[]
+  progress  StudentProgress[]
+
+  @@index([themeId])
+  @@index([courseId, weekNumber])
+}
+
+model Resource {
+  id        String  @id @default(cuid())
+  weekId    String
+  title     String
+  type      ResourceType
+  url       String  // signed Supabase URL or external
+  embedded  Boolean @default(false)
+  atlasRef  String? // original Atlas ID
+
+  week Week @relation(fields: [weekId], references: [id])
+}
+
+model StudentProgress {
+  id          String        @id @default(cuid())
+  userId      String
+  weekId      String?
+  courseId    String
+  status      ProgressStatus @default(NOT_STARTED)
+  completedAt DateTime?
+  score       Float?
+
+  user   User   @relation(fields: [userId], references: [id])
+  week   Week?  @relation(fields: [weekId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+}
+
+model AeroStandard {
+  id          String @id @default(cuid())
+  code        String @unique
+  description String
+  gradeLevel  Int?
+  subject     String?
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum MembershipRole {
+  OWNER
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum Track {
+  STANDARD
+  PREAP
+  AP
+}
+
+enum ResourceType {
+  DOCUMENT
+  VIDEO
+  LINK
+  ASSESSMENT
+  PDF
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
