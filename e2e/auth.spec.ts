@@ -20,13 +20,11 @@ test.describe('Login & redirect flow', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test('/login page renders the Google sign-in button', async ({ page }) => {
+  test('/login page renders the email sign-in form', async ({ page }) => {
     await page.goto('/login')
-    // Adjust the selector to match your actual login button text or test-id
-    const loginButton = page.getByRole('button', { name: /sign in with google/i }).or(
-      page.getByRole('link', { name: /sign in with google/i })
-    )
-    await expect(loginButton).toBeVisible()
+    await expect(page.getByLabel(/email/i)).toBeVisible()
+    await expect(page.getByLabel(/password/i)).toBeVisible()
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible()
   })
 
   test('root path redirects unauthenticated users to /login', async ({ page }) => {
