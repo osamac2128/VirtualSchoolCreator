@@ -24,7 +24,7 @@ test.describe('Login & redirect flow', () => {
     await page.goto('/login')
     await expect(page.getByLabel(/email/i)).toBeVisible()
     await expect(page.getByLabel(/password/i)).toBeVisible()
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible()
   })
 
   test('root path redirects unauthenticated users to /login', async ({ page }) => {
