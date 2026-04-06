@@ -1,0 +1,40 @@
+import { test, expect } from '@playwright/test'
+
+/**
+ * Authentication flow tests.
+ *
+ * These run against the live dev server. Supabase OAuth is mocked at the
+ * network level using Playwright's route interception so we never need real
+ * credentials in CI.
+ */
+
+test.describe('Login & redirect flow', () => {
+  test('unauthenticated user is redirected to /login from protected route', async ({ page }) => {
+    // Intercept the Supabase auth/getUser call to return no user
+    await page.route('**/auth/v1/user', (route) => {
+      route.fulfill({ status: 401, body: JSON.stringify({ error: 'not authenticated' }) })
+    })
+
+    await page.goto('/dashboard/admin')
+    // Middleware should redirect to /login
+    await expect(page).toHaveURL(/\/login/)
+  })
+
+  test('/login page renders the Google sign-in button', async ({ page }) => {
+    await page.goto('/login')
+    // Adjust the selector to match your actual login button text or test-id
+    const loginButton = page.getByRole('button', { name: /sign in with google/i }).or(
+      page.getByRole('link', { name: /sign in with google/i })
+    )
+    await expect(loginButton).toBeVisible()
+  })
+
+  test('root path redirects unauthenticated users to /login', async ({ page }) => {
+    await page.route('**/auth/v1/user', (route) => {
+      route.fulfill({ status: 401, body: JSON.stringify({ error: 'not authenticated' }) })
+    })
+
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/login/)
+  })
+})

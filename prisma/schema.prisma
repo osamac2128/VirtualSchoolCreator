@@ -31,6 +31,7 @@ model User {
 
   memberships Membership[]
   progress    StudentProgress[]
+  auditLogs   AuditLog[]
 
   // Parent-Student Relations
   children ParentStudent[] @relation("ParentRelation")
@@ -139,6 +140,16 @@ model AeroStandard {
   description String
   gradeLevel  Int?
   subject     String?
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 enum UserRole {
