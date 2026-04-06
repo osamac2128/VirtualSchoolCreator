@@ -13,8 +13,11 @@ import { test, expect } from '@playwright/test'
  * are set up in CI (e.g., SUPABASE_TEST_USER/SUPABASE_TEST_PASSWORD).
  */
 
+const isDeployed = !!process.env.PLAYWRIGHT_BASE_URL && !process.env.PLAYWRIGHT_BASE_URL.includes('localhost')
+
 test.describe('Admin dashboard', () => {
   test('renders the upload form', async ({ page }) => {
+    test.skip(isDeployed, 'Auth mocking requires local dev server — server-side Supabase auth cannot be intercepted by browser route mocking')
     // Mock the auth check so middleware passes
     await page.route('**/auth/v1/user', (route) => {
       route.fulfill({

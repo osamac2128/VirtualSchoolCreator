@@ -7,7 +7,11 @@ import { test, expect } from '@playwright/test'
  * mocked at the network level — no real Inngest events are fired.
  */
 
+const isDeployed = !!process.env.PLAYWRIGHT_BASE_URL && !process.env.PLAYWRIGHT_BASE_URL.includes('localhost')
+
 test.describe('UploadCourse form', () => {
+  test.skip(isDeployed, 'Auth mocking requires local dev server — server-side Supabase auth cannot be intercepted by browser route mocking')
+
   test.beforeEach(async ({ page }) => {
     // Mock auth to let the page load
     await page.route('**/auth/v1/user', (route) => {
