@@ -29,10 +29,10 @@ interface NavItem {
 
 const navByRole: Record<UserRole, NavItem[]> = {
   ADMIN: [
-    { label: 'Dashboard',   href: '/dashboard/admin',   icon: <LayoutDashboard className="h-4 w-4" /> },
-    { label: 'All Courses', href: '/dashboard/admin',   icon: <BookOpen className="h-4 w-4" /> },
-    { label: 'Users',       href: '/dashboard/admin',   icon: <Users className="h-4 w-4" /> },
-    { label: 'Settings',    href: '/dashboard/admin',   icon: <Settings className="h-4 w-4" /> },
+    { label: 'Dashboard',   href: '/dashboard/admin',          icon: <LayoutDashboard className="h-4 w-4" /> },
+    { label: 'All Courses', href: '/dashboard/admin/courses',  icon: <BookOpen className="h-4 w-4" /> },
+    { label: 'Users',       href: '/dashboard/admin/users',    icon: <Users className="h-4 w-4" /> },
+    { label: 'Settings',    href: '/dashboard/admin/settings', icon: <Settings className="h-4 w-4" /> },
   ],
   TEACHER: [
     { label: 'My Courses', href: '/dashboard/teacher', icon: <BookOpen className="h-4 w-4" /> },
