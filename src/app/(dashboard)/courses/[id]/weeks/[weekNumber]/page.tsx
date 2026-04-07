@@ -36,7 +36,20 @@ export default async function WeekPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const dbUser = await prisma.user.findUnique({
+    where: { supabaseId: user.id },
+    select: { schoolId: true },
+  })
+  if (!dbUser) redirect('/login')
+
   const weekNum = parseInt(weekNumber)
+
+  // Verify the course belongs to the user's school before fetching week
+  const courseCheck = await prisma.course.findFirst({
+    where: { id, schoolId: dbUser.schoolId },
+    select: { id: true },
+  })
+  if (!courseCheck) notFound()
 
   const week = await prisma.week.findFirst({
     where: { courseId: id, weekNumber: weekNum },

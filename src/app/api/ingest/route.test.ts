@@ -66,10 +66,10 @@ describe('POST /api/ingest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-123' } } })
-    mockUserFindUnique.mockResolvedValue({ schoolId: 'school-abc' })
+    mockUserFindUnique.mockResolvedValue({ schoolId: 'school-abc', id: 'dbuser-456' })
     mockParseAtlasExcel.mockResolvedValue(MOCK_RAW_DATA)
     mockParseOneRoster.mockResolvedValue(MOCK_RAW_DATA)
-    mockInngestSend.mockResolvedValue(undefined)
+    mockInngestSend.mockResolvedValue({ ids: ['inngest-event-001'] })
   })
 
   it('returns 401 when user is not authenticated', async () => {
@@ -149,7 +149,7 @@ describe('POST /api/ingest', () => {
     const sentPayload = mockInngestSend.mock.calls[0][0]
     expect(sentPayload.name).toBe('course.generate')
     expect(sentPayload.data.schoolId).toBe('school-abc') // derived from DB, not hardcoded
-    expect(sentPayload.data.userId).toBe('user-123')
+    expect(sentPayload.data.userId).toBe('dbuser-456') // DB user ID, not Supabase auth ID
   })
 
   it('queues an Inngest event for CSV files', async () => {

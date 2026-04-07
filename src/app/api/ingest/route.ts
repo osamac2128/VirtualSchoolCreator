@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     // ── Derive schoolId from authenticated user's Prisma record ───────────────
     const dbUser = await prisma.user.findUnique({
       where: { supabaseId: user.id },
-      select: { schoolId: true },
+      select: { schoolId: true, id: true },
     })
 
     if (!dbUser) {
@@ -115,11 +115,11 @@ export async function POST(req: Request) {
     }
 
     // ── Queue background job via Inngest ───────────────────────────────────────
-    await inngest.send({
+    const { ids } = await inngest.send({
       name: 'course.generate',
       data: {
         rawData,
-        userId: user.id,
+        userId: dbUser.id,
         schoolId,
         courseName,
         gradeLevel: parseInt(gradeLevelStr, 10),
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json({ jobId: 'queued', message: 'Course generation queued successfully' })
+    return NextResponse.json({ jobId: ids[0] ?? null, message: 'Course generation queued successfully' })
   } catch (error: unknown) {
     console.error('Ingest error:', error)
     const message = error instanceof Error ? error.message : 'Internal server error'

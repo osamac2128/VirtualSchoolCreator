@@ -5,7 +5,7 @@ import UploadCourse from '@/components/UploadCourse'
 import { StatCard } from '@/components/StatCard'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { BookOpen, Users, GraduationCap, UserCheck, Activity, Clock } from 'lucide-react'
+import { BookOpen, Users, GraduationCap, UserCheck, Clock } from 'lucide-react'
 
 export default async function AdminDashboard() {
   const supabase = await createClient()
@@ -79,31 +79,6 @@ export default async function AdminDashboard() {
 
         {/* System status */}
         <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Activity className="h-4 w-4 text-primary" />
-                System Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-                <span className="text-sm font-medium">Course Generation Queue</span>
-                <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--status-completed)]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-completed)]" />
-                  Active
-                </span>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-                <span className="text-sm font-medium">AI Pipeline</span>
-                <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--status-completed)]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-completed)]" />
-                  Ready
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">

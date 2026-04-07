@@ -64,13 +64,6 @@ export default async function AdminSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-dashed">
-          <CardContent className="px-5 py-4">
-            <p className="text-sm text-muted-foreground">
-              Additional settings (SSO, integrations, notifications) coming soon.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

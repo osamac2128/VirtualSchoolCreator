@@ -20,8 +20,14 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const dbUser = await prisma.user.findUnique({
+    where: { supabaseId: user.id },
+    select: { schoolId: true },
+  })
+  if (!dbUser) redirect('/login')
+
   const course = await prisma.course.findUnique({
-    where: { id },
+    where: { id, schoolId: dbUser.schoolId },
     include: {
       themes: {
         include: {
