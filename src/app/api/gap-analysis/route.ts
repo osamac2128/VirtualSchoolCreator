@@ -60,6 +60,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'User profile not found' }, { status: 403 })
     }
 
+    if (dbUser.role !== 'ADMIN' && dbUser.role !== 'TEACHER') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const course = await prisma.course.findUnique({
       where: { id: courseId },
       include: { themes: { include: { weeks: true } } },

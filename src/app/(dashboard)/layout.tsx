@@ -25,7 +25,7 @@ export default async function DashboardLayout({
   })
 
   if (!dbUser) {
-    redirect('/login')
+    redirect('/pending')
   }
 
   return (
