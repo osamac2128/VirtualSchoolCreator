@@ -6,6 +6,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { PageHeader } from '@/components/PageHeader'
 import { notFound, redirect } from 'next/navigation'
 import { CalendarDays, BookOpen, ArrowRight, Layers } from 'lucide-react'
+import { WeekStatusBadge } from '@/components/WeekStatusBadge'
 
 const trackLabels: Record<string, string> = {
   STANDARD: 'Standard',
@@ -13,8 +14,15 @@ const trackLabels: Record<string, string> = {
   AP: 'AP',
 }
 
-export default async function CoursePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CoursePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ studentId?: string }>
+}) {
   const { id } = await params
+  const { studentId } = await searchParams
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,7 +30,7 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
 
   const dbUser = await prisma.user.findUnique({
     where: { supabaseId: user.id },
-    select: { schoolId: true },
+    select: { id: true, role: true, schoolId: true },
   })
   if (!dbUser) redirect('/login')
 
@@ -49,8 +57,42 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
 
   if (!course) notFound()
 
+  // Progress map for student/parent overlay
+  let progressByWeek: Map<string, string> = new Map()
+  let viewingStudentName: string | null = null
+
+  if (dbUser.role === 'STUDENT') {
+    const progressRecords = await prisma.studentProgress.findMany({
+      where: { userId: dbUser.id, courseId: id },
+      select: { weekId: true, status: true },
+    })
+    for (const p of progressRecords) {
+      if (p.weekId) progressByWeek.set(p.weekId, p.status)
+    }
+  } else if (dbUser.role === 'PARENT' && studentId) {
+    const parentStudent = await prisma.parentStudent.findFirst({
+      where: { parentId: dbUser.id, studentId },
+      include: { student: { select: { name: true } } },
+    })
+    if (parentStudent) {
+      viewingStudentName = parentStudent.student.name
+      const progressRecords = await prisma.studentProgress.findMany({
+        where: { userId: studentId, courseId: id },
+        select: { weekId: true, status: true },
+      })
+      for (const p of progressRecords) {
+        if (p.weekId) progressByWeek.set(p.weekId, p.status)
+      }
+    }
+  }
+
   return (
     <div className="space-y-8">
+      {viewingStudentName && (
+        <div className="rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-4 py-3 text-sm text-foreground">
+          Viewing progress for <span className="font-semibold">{viewingStudentName}</span>
+        </div>
+      )}
       <PageHeader
         title={course.name}
         subtitle={`Grade ${course.gradeLevel} · ${trackLabels[course.track] ?? course.track} · ${course.totalWeeks} Weeks`}
@@ -110,11 +152,16 @@ export default async function CoursePage({ params }: { params: Promise<{ id: str
                     </CardDescription>
                     <CardTitle className="text-sm leading-snug line-clamp-2">{week.focus}</CardTitle>
                   </CardHeader>
-                  <CardContent className="flex-1 pb-3">
+                  <CardContent className="flex-1 pb-3 space-y-2">
                     {Array.isArray(week.objectives) && week.objectives.length > 0 && (
                       <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                         {(week.objectives as unknown[]).length} objectives
                       </span>
+                    )}
+                    {(dbUser.role === 'STUDENT' || (dbUser.role === 'PARENT' && viewingStudentName)) && (
+                      <WeekStatusBadge
+                        status={(progressByWeek.get(week.id) ?? 'NOT_STARTED') as 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'}
+                      />
                     )}
                   </CardContent>
                   <div className="border-t border-border px-4 py-2.5">

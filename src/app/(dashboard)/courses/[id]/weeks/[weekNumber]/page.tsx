@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import { WeekStatusBadge } from '@/components/WeekStatusBadge'
+import { MarkCompleteButton } from '@/components/MarkCompleteButton'
 
 const resourceIcon: Record<string, React.ReactNode> = {
   VIDEO:      <Play className="h-4 w-4 text-[var(--role-admin)]" />,
@@ -38,7 +40,7 @@ export default async function WeekPage({
 
   const dbUser = await prisma.user.findUnique({
     where: { supabaseId: user.id },
-    select: { schoolId: true },
+    select: { id: true, role: true, schoolId: true },
   })
   if (!dbUser) redirect('/login')
 
@@ -66,6 +68,16 @@ export default async function WeekPage({
     prisma.week.findFirst({ where: { courseId: id, weekNumber: weekNum - 1 }, select: { weekNumber: true } }),
     prisma.week.findFirst({ where: { courseId: id, weekNumber: weekNum + 1 }, select: { weekNumber: true } }),
   ])
+
+  // Fetch student progress for this week
+  let weekStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' = 'NOT_STARTED'
+  if (dbUser.role === 'STUDENT') {
+    const progress = await prisma.studentProgress.findFirst({
+      where: { userId: dbUser.id, weekId: week.id },
+      select: { status: true },
+    })
+    weekStatus = (progress?.status ?? 'NOT_STARTED') as typeof weekStatus
+  }
 
   const objectives = (week.objectives as unknown) as Array<{ aeroCode?: string; text?: string }>
   const activities = (week.activities as unknown) as string[]
@@ -107,6 +119,20 @@ export default async function WeekPage({
               </div>
             </CardContent>
           </Card>
+
+          {/* Student progress */}
+          {dbUser.role === 'STUDENT' && (
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <WeekStatusBadge status={weekStatus} />
+                <MarkCompleteButton
+                  weekId={week.id}
+                  courseId={id}
+                  currentStatus={weekStatus}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Resources */}
           <Card>

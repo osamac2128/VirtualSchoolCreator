@@ -34,17 +34,20 @@ export default async function StudentDashboard() {
   // Fetch progress for all courses
   const progressData = await prisma.studentProgress.findMany({
     where: { userId: dbUser.id },
-    select: { status: true, weekId: true },
+    select: { status: true, weekId: true, courseId: true },
   })
 
-  const completedCount = progressData.filter((p) => p.status === 'COMPLETED').length
-  const totalWeeks = courses.reduce((sum, c) => sum + (c?.totalWeeks ?? 0), 0)
-  const overallPercent = totalWeeks > 0 ? Math.round((completedCount / totalWeeks) * 100) : 0
+  // Per-course completed map
+  const completedByCourse = new Map<string, number>()
+  for (const p of progressData) {
+    if (p.status === 'COMPLETED' && p.courseId) {
+      completedByCourse.set(p.courseId, (completedByCourse.get(p.courseId) ?? 0) + 1)
+    }
+  }
 
-  // Per-course progress
-  const progressByWeek = new Set(
-    progressData.filter((p) => p.status === 'COMPLETED').map((p) => p.weekId)
-  )
+  const totalWeeks = courses.reduce((sum, c) => sum + (c?.totalWeeks ?? 0), 0)
+  const totalCompleted = [...completedByCourse.values()].reduce((a, b) => a + b, 0)
+  const overallPercent = totalWeeks > 0 ? Math.round((totalCompleted / totalWeeks) * 100) : 0
 
   return (
     <div className="space-y-8">
@@ -62,7 +65,7 @@ export default async function StudentDashboard() {
               <p className="text-sm font-medium text-primary-foreground/80">Overall Progress</p>
               <p className="mt-0.5 text-3xl font-bold">{overallPercent}%</p>
               <p className="mt-1 text-sm text-primary-foreground/70">
-                {completedCount} of {totalWeeks} weeks completed
+                {totalCompleted} of {totalWeeks} weeks completed
               </p>
             </div>
             <div className="ml-auto hidden sm:flex items-center gap-2 text-primary-foreground/60">
@@ -84,10 +87,8 @@ export default async function StudentDashboard() {
           {courses.map((course) => {
             if (!course) return null
             const weekCount = course.totalWeeks
-            // Count completed weeks for this course would require week IDs; use global for now
-            const coursePercent = weekCount > 0 && completedCount > 0
-              ? Math.min(Math.round((completedCount / weekCount) * 100), 100)
-              : 0
+            const courseCompleted = completedByCourse.get(course.id) ?? 0
+            const coursePercent = weekCount > 0 ? Math.min(Math.round((courseCompleted / weekCount) * 100), 100) : 0
 
             return (
               <Card key={course.id} className="flex flex-col">
