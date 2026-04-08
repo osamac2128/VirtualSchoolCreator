@@ -256,8 +256,7 @@ async function main() {
   console.log('Progress created');
 
   console.log('\n=== DONE ===');
-  console.log('Student login: student.test@aisj.edu.sa / TestStudent1!');
-  console.log('Teacher login: ochaudhry@aisj.edu.sa / Allahis1');
+  console.log('Seed complete. Check .env.local for test credentials.');
   console.log('Course: AP Computer Science A (8 weeks, 2 themes)');
 }
 

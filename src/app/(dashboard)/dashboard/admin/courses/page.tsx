@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
 import { BookOpen, CalendarDays, ArrowRight, Plus } from 'lucide-react'
+import { GapAnalysisButton } from '@/components/GapAnalysisButton'
 
 const trackLabels: Record<string, string> = { STANDARD: 'Standard', PREAP: 'Pre-AP', AP: 'AP' }
 const trackColors: Record<string, string> = {
@@ -87,13 +88,14 @@ export default async function AdminCoursesPage() {
                   {course._count.memberships} enrolled
                 </p>
               </CardContent>
-              <div className="border-t border-border px-4 py-2.5">
+              <div className="border-t border-border px-4 py-2.5 space-y-1">
                 <Link
                   href={`/courses/${course.id}`}
                   className="inline-flex items-center text-xs font-medium text-primary hover:text-primary/80 transition-colors"
                 >
                   View Course <ArrowRight className="ml-1 h-3 w-3" />
                 </Link>
+                <GapAnalysisButton courseId={course.id} />
               </div>
             </Card>
           ))}

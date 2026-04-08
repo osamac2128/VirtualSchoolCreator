@@ -73,7 +73,7 @@ export default async function TeacherDashboard() {
         <div className="rounded-xl border border-dashed border-border bg-muted/40 px-8 py-16 text-center">
           <BookOpen className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
           <p className="text-sm font-medium text-muted-foreground">No courses assigned yet.</p>
-          <p className="mt-1 text-xs text-muted-foreground/70">Contact your administrator to get started.</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">Ask your administrator to assign courses to you.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
