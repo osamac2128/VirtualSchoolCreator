@@ -61,56 +61,81 @@ async function extractThemesNode(state: CourseState): Promise<Partial<CourseStat
     Raw Data: {rawData}
     Grade Level: {gradeLevel}
     Track: {track}
-    
+
     {format_instructions}
     `
   )
-  
+
   const chain = prompt.pipe(llm).pipe(parser)
   const response = await chain.invoke({
-    rawData: JSON.stringify(state.rawData.slice(0, 10)), // Truncated for token limit in real implementation
+    rawData: JSON.stringify(state.rawData.map(row => ({
+      unitName: row.unitName,
+      duration: row.unitDuration,
+      standards: row.aeroStandards,
+    }))),
     gradeLevel: state.gradeLevel.toString(),
     track: state.track,
     format_instructions: parser.getFormatInstructions(),
   })
-  
+
   return { themes: response.themes }
 }
 
 async function generateWeeksNode(state: CourseState): Promise<Partial<CourseState>> {
   const parser = StructuredOutputParser.fromZodSchema(ThemeWeeksSchema)
-  const weeksByTheme: Record<string, z.infer<typeof WeekSchema>[]> = {}
-  let currentWeekNum = 1
-  
-  for (const theme of state.themes) {
-    const prompt = PromptTemplate.fromTemplate(
-      `Generate weekly plans for the theme "{themeTitle}" lasting {duration} weeks.
+
+  // Pre-compute start week offsets for each theme
+  const themeStartWeeks = state.themes.map((theme, idx) => {
+    const startWeek = state.themes.slice(0, idx).reduce((acc, t) => acc + t.durationWeeks, 1)
+    return { theme, startWeek }
+  })
+
+  const results = await Promise.all(
+    themeStartWeeks.map(async ({ theme, startWeek }) => {
+      const relevantRows = state.rawData.slice(0, 20)
+
+      const prompt = PromptTemplate.fromTemplate(
+        `Generate weekly plans for the theme "{themeTitle}" lasting {duration} weeks.
       Current global week number starts at: {startWeek}
-      
+
+      Source curriculum data for context:
+      {sourceData}
+
       {format_instructions}
       `
-    )
-    
-    const chain = prompt.pipe(llm).pipe(parser)
-    const response = await chain.invoke({
-      themeTitle: theme.title,
-      duration: theme.durationWeeks.toString(),
-      startWeek: currentWeekNum.toString(),
-      format_instructions: parser.getFormatInstructions(),
+      )
+
+      const chain = prompt.pipe(llm).pipe(parser)
+      const response = await chain.invoke({
+        themeTitle: theme.title,
+        duration: theme.durationWeeks.toString(),
+        startWeek: startWeek.toString(),
+        sourceData: JSON.stringify(relevantRows.slice(0, 20)),
+        format_instructions: parser.getFormatInstructions(),
+      })
+
+      return {
+        title: theme.title,
+        weeks: response.weeks.map((w: z.infer<typeof WeekSchema>, idx: number) => ({
+          ...w,
+          weekNumber: startWeek + idx,
+        })),
+      }
     })
-    
-    weeksByTheme[theme.title] = response.weeks.map((w: z.infer<typeof WeekSchema>, idx: number) => ({
-      ...w,
-      weekNumber: currentWeekNum + idx
-    }))
-    
-    currentWeekNum += theme.durationWeeks
+  )
+
+  const weeksByTheme: Record<string, z.infer<typeof WeekSchema>[]> = {}
+  for (const { title, weeks } of results) {
+    weeksByTheme[title] = weeks
   }
-  
+
   return { weeksByTheme }
 }
 
 async function persistCourseNode(state: CourseState): Promise<Partial<CourseState>> {
+  // Collect all unique AERO alignment codes from all themes
+  const allAeroStandards = [...new Set(state.themes.flatMap(t => t.aeroAlignment))]
+
   // Create Course
   const course = await prisma.course.create({
     data: {
@@ -119,6 +144,7 @@ async function persistCourseNode(state: CourseState): Promise<Partial<CourseStat
       schoolId: state.schoolId,
       track: state.track as Track,
       totalWeeks: state.themes.reduce((acc, t) => acc + t.durationWeeks, 0),
+      aeroStandards: allAeroStandards,
     }
   })
 
@@ -196,6 +222,6 @@ export async function runCourseGenerationPipeline(rawData: ParsedAtlasRow[], use
     themes: [],
     weeksByTheme: {}
   })
-  
+
   return result
 }
