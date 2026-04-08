@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button-variants'
-import { BookOpen, Users2, X, Plus, Loader2 } from 'lucide-react'
+import { BookOpen, Users2, X, Plus, Loader2, RotateCcw } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -57,12 +57,17 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
   const [loadingEnrollments, setLoadingEnrollments] = useState(false)
   const [enrollmentsError, setEnrollmentsError] = useState<string | null>(null)
 
-  const [addUserId, setAddUserId] = useState('')
+  // Bulk add state — multi-select user IDs
+  const [addUserIds, setAddUserIds] = useState<string[]>([])
   const [addRole, setAddRole] = useState<MembershipRole>('STUDENT')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
   const [removingId, setRemovingId] = useState<string | null>(null)
+
+  // Progress reset state per enrollment
+  const [resettingProgressId, setResettingProgressId] = useState<string | null>(null)
+  const [resetConfirmId, setResetConfirmId] = useState<string | null>(null)
 
   // Fetch enrollments for a course
   const fetchEnrollments = useCallback(async (courseId: string) => {
@@ -84,8 +89,9 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
   // Select a course
   function handleSelectCourse(courseId: string) {
     setSelectedCourseId(courseId)
-    setAddUserId('')
+    setAddUserIds([])
     setAddError(null)
+    setResetConfirmId(null)
     // Update URL searchParam without full navigation
     const url = new URL(window.location.href)
     url.searchParams.set('courseId', courseId)
@@ -93,20 +99,31 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
     fetchEnrollments(courseId)
   }
 
-  // Add enrollment
+  // Toggle a user in the multi-select list
+  function handleToggleUser(userId: string) {
+    setAddUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+    )
+  }
+
+  // Bulk add enrollment
   async function handleAdd() {
-    if (!selectedCourseId || !addUserId) return
+    if (!selectedCourseId || addUserIds.length === 0) return
     setAdding(true)
     setAddError(null)
     try {
       const res = await fetch('/api/enrollments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseId: selectedCourseId, userId: addUserId, role: addRole }),
+        body: JSON.stringify({
+          courseId: selectedCourseId,
+          userIds: addUserIds,
+          role: addRole,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to add enrollment')
-      setAddUserId('')
+      setAddUserIds([])
       await fetchEnrollments(selectedCourseId)
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Unknown error')
@@ -129,10 +146,29 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
       if (!res.ok) throw new Error(data.error ?? 'Failed to remove enrollment')
       await fetchEnrollments(selectedCourseId)
     } catch (err) {
-      // Surface error briefly in the UI
       setEnrollmentsError(err instanceof Error ? err.message : 'Remove failed')
     } finally {
       setRemovingId(null)
+    }
+  }
+
+  // Reset progress for a student on the selected course
+  async function handleResetProgress(enrollment: Enrollment) {
+    if (!selectedCourseId) return
+    setResettingProgressId(enrollment.id)
+    setResetConfirmId(null)
+    try {
+      const res = await fetch(
+        `/api/courses/${encodeURIComponent(selectedCourseId)}/reset-progress?userId=${encodeURIComponent(enrollment.userId)}`,
+        { method: 'DELETE' },
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to reset progress')
+      // No need to re-fetch enrollments — progress is a separate record
+    } catch (err) {
+      setEnrollmentsError(err instanceof Error ? err.message : 'Progress reset failed')
+    } finally {
+      setResettingProgressId(null)
     }
   }
 
@@ -195,11 +231,20 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
               </CardHeader>
               <CardContent className="p-0">
                 {loadingEnrollments ? (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground animate-pulse">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Loading...
                   </div>
                 ) : enrollmentsError ? (
-                  <p className="px-4 py-4 text-sm text-destructive">{enrollmentsError}</p>
+                  <div className="flex items-center gap-3 px-4 py-4">
+                    <p className="flex-1 text-sm text-destructive">{enrollmentsError}</p>
+                    <button
+                      onClick={() => selectedCourseId && fetchEnrollments(selectedCourseId)}
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    >
+                      Retry
+                    </button>
+                  </div>
                 ) : enrollments.length === 0 ? (
                   <p className="px-4 py-4 text-sm text-muted-foreground">
                     No one is enrolled yet.
@@ -226,6 +271,43 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
                         >
                           {enrollment.role}
                         </span>
+
+                        {/* Reset progress — only meaningful for STUDENTs */}
+                        {enrollment.role === 'STUDENT' && (
+                          resetConfirmId === enrollment.id ? (
+                            <div className="flex flex-shrink-0 items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground">Reset?</span>
+                              <button
+                                onClick={() => handleResetProgress(enrollment)}
+                                disabled={resettingProgressId === enrollment.id}
+                                className={buttonVariants({ variant: 'destructive', size: 'xs' })}
+                              >
+                                {resettingProgressId === enrollment.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  'Yes'
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setResetConfirmId(null)}
+                                className={buttonVariants({ variant: 'ghost', size: 'xs' })}
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setResetConfirmId(enrollment.id)}
+                              disabled={resettingProgressId === enrollment.id}
+                              className={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
+                              title="Reset progress"
+                              aria-label={`Reset progress for ${enrollment.user.name}`}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          )
+                        )}
+
                         <button
                           onClick={() => handleRemove(enrollment.id)}
                           disabled={removingId === enrollment.id}
@@ -246,79 +328,102 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
               </CardContent>
             </Card>
 
-            {/* Add enrollment */}
+            {/* Bulk add enrollment */}
             <Card>
               <CardHeader className="border-b pb-3">
-                <CardTitle className="text-sm">Add User to Course</CardTitle>
+                <CardTitle className="text-sm">Add Users to Course</CardTitle>
               </CardHeader>
               <CardContent className="pt-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  {/* User select */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                  {/* Multi-select user list */}
                   <div className="flex-1 min-w-0">
                     <label
-                      htmlFor="enroll-user"
+                      htmlFor="enroll-users"
                       className="mb-1 block text-xs font-medium text-muted-foreground"
                     >
-                      User
+                      Users
+                      {addUserIds.length > 0 && (
+                        <span className="ml-1.5 text-primary font-semibold">
+                          ({addUserIds.length} selected)
+                        </span>
+                      )}
                     </label>
-                    <select
-                      id="enroll-user"
-                      value={addUserId}
-                      onChange={(e) => setAddUserId(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      disabled={loadingEnrollments}
-                    >
-                      <option value="">Select a user...</option>
-                      {unenrolledUsers.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} — {u.email} ({u.role})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Role select */}
-                  <div className="flex-shrink-0">
-                    <label
-                      htmlFor="enroll-role"
-                      className="mb-1 block text-xs font-medium text-muted-foreground"
-                    >
-                      Role
-                    </label>
-                    <select
-                      id="enroll-role"
-                      value={addRole}
-                      onChange={(e) => setAddRole(e.target.value as MembershipRole)}
-                      className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="STUDENT">Student</option>
-                      <option value="TEACHER">Teacher</option>
-                    </select>
-                  </div>
-
-                  {/* Add button */}
-                  <button
-                    onClick={handleAdd}
-                    disabled={!addUserId || adding || loadingEnrollments}
-                    className={buttonVariants({ variant: 'default', size: 'default' })}
-                  >
-                    {adding ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                    {unenrolledUsers.length === 0 && !loadingEnrollments ? (
+                      <p className="text-xs text-muted-foreground py-1">
+                        All school users are already enrolled in this course.
+                      </p>
                     ) : (
-                      <Plus className="h-4 w-4" />
+                      <select
+                        id="enroll-users"
+                        multiple
+                        size={Math.min(5, Math.max(3, unenrolledUsers.length))}
+                        value={addUserIds}
+                        onChange={(e) => {
+                          const selected = Array.from(e.target.selectedOptions).map(
+                            (o) => o.value,
+                          )
+                          setAddUserIds(selected)
+                        }}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                        disabled={loadingEnrollments}
+                      >
+                        {unenrolledUsers.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} — {u.email} ({u.role})
+                          </option>
+                        ))}
+                      </select>
                     )}
-                    Add
-                  </button>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Hold Ctrl / Cmd to select multiple users.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 flex-shrink-0">
+                    {/* Role select */}
+                    <div>
+                      <label
+                        htmlFor="enroll-role"
+                        className="mb-1 block text-xs font-medium text-muted-foreground"
+                      >
+                        Role
+                      </label>
+                      <select
+                        id="enroll-role"
+                        value={addRole}
+                        onChange={(e) => setAddRole(e.target.value as MembershipRole)}
+                        className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="STUDENT">Student</option>
+                        <option value="TEACHER">Teacher</option>
+                      </select>
+                    </div>
+
+                    {/* Add button */}
+                    <button
+                      onClick={handleAdd}
+                      disabled={addUserIds.length === 0 || adding || loadingEnrollments}
+                      className={buttonVariants({ variant: 'default', size: 'default' })}
+                    >
+                      {adding ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Adding {addUserIds.length}...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4" />
+                          {addUserIds.length > 1
+                            ? `Add ${addUserIds.length} users`
+                            : 'Add'}
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {addError && (
                   <p className="mt-2 text-xs text-destructive">{addError}</p>
-                )}
-
-                {unenrolledUsers.length === 0 && !loadingEnrollments && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    All school users are already enrolled in this course.
-                  </p>
                 )}
               </CardContent>
             </Card>

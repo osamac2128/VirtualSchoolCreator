@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
-import { RoleBadge } from '@/components/RoleBadge'
 import { PendingInvitesList } from '@/components/PendingInvitesList'
+import { UserManagementRow } from '@/components/UserManagementRow'
 import { Card, CardContent } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button-variants'
 import { Users, Mail, UserPlus } from 'lucide-react'
@@ -16,14 +16,15 @@ export default async function AdminUsersPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { supabaseId: user.id },
-    select: { schoolId: true },
+    select: { id: true, role: true, schoolId: true },
   })
   if (!dbUser) redirect('/login')
+  if (dbUser.role !== 'ADMIN') redirect('/dashboard/admin')
 
   const users = await prisma.user.findMany({
     where: { schoolId: dbUser.schoolId },
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
   })
 
   const byRole = {
@@ -65,23 +66,14 @@ export default async function AdminUsersPage() {
                 <CardContent className="p-0">
                   <ul className="divide-y divide-border">
                     {roleUsers.map((u) => (
-                      <li key={u.id} className="flex items-center gap-4 px-5 py-3.5">
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">{u.name}</p>
-                          <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                            <Mail className="h-3 w-3" /> {u.email}
-                          </p>
-                        </div>
-                        <div className="flex-shrink-0">
-                          <RoleBadge role={u.role as 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT'} />
-                        </div>
-                        <p className="hidden flex-shrink-0 text-xs text-muted-foreground sm:block">
-                          Joined {new Date(u.createdAt).toLocaleDateString()}
-                        </p>
-                      </li>
+                      <UserManagementRow
+                        key={u.id}
+                        user={{
+                          ...u,
+                          createdAt: u.createdAt.toISOString(),
+                        }}
+                        isCurrentUser={u.id === dbUser.id}
+                      />
                     ))}
                   </ul>
                 </CardContent>
