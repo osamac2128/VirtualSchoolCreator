@@ -3,8 +3,11 @@ import prisma from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
 import { RoleBadge } from '@/components/RoleBadge'
+import { PendingInvitesList } from '@/components/PendingInvitesList'
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, Mail } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button-variants'
+import { Users, Mail, UserPlus } from 'lucide-react'
+import Link from 'next/link'
 
 export default async function AdminUsersPage() {
   const supabase = await createClient()
@@ -36,6 +39,15 @@ export default async function AdminUsersPage() {
         title="Users"
         subtitle={`${users.length} user${users.length !== 1 ? 's' : ''} in your school`}
         breadcrumb={[{ label: 'Dashboard', href: '/dashboard/admin' }]}
+        action={
+          <Link
+            href="/dashboard/admin/users/invite"
+            className={buttonVariants({ variant: 'default', size: 'default' })}
+          >
+            <UserPlus className="h-4 w-4" />
+            Invite User
+          </Link>
+        }
       />
 
       <div className="space-y-8">
@@ -78,6 +90,17 @@ export default async function AdminUsersPage() {
           )
         })}
       </div>
+
+      {/* Pending Invites */}
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <Mail className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+            Pending Invites
+          </h2>
+        </div>
+        <PendingInvitesList />
+      </section>
     </div>
   )
 }

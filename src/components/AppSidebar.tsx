@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   BookOpen,
   Users,
+  UserPlus,
   Users2,
   Settings,
   ChevronDown,
@@ -32,8 +33,9 @@ const navByRole: Record<UserRole, NavItem[]> = {
   ADMIN: [
     { label: 'Dashboard',   href: '/dashboard/admin',          icon: <LayoutDashboard className="h-4 w-4" /> },
     { label: 'All Courses', href: '/dashboard/admin/courses',  icon: <BookOpen className="h-4 w-4" /> },
-    { label: 'Users',       href: '/dashboard/admin/users',       icon: <Users className="h-4 w-4" /> },
-    { label: 'Enrollments', href: '/dashboard/admin/enrollments', icon: <Users2 className="h-4 w-4" /> },
+    { label: 'Users',        href: '/dashboard/admin/users',        icon: <Users className="h-4 w-4" /> },
+    { label: 'Invite Users', href: '/dashboard/admin/users/invite', icon: <UserPlus className="h-4 w-4" /> },
+    { label: 'Enrollments',  href: '/dashboard/admin/enrollments',  icon: <Users2 className="h-4 w-4" /> },
     { label: 'Settings',    href: '/dashboard/admin/settings',    icon: <Settings className="h-4 w-4" /> },
   ],
   TEACHER: [

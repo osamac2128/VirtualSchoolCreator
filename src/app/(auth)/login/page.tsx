@@ -1,7 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +14,17 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const supabase = createClient()
+
+  // Handle ?error= query param (e.g. deactivated account from auth callback)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const errorParam = params.get('error')
+    if (errorParam === 'deactivated') {
+      setError(
+        'Your account has been deactivated. Please contact your school administrator.'
+      )
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,7 +43,8 @@ export default function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        window.location.href = '/dashboard'
+        const callbackUrl = new URLSearchParams(window.location.search).get('callbackUrl')
+        window.location.href = callbackUrl ?? '/dashboard'
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred')
