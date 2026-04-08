@@ -34,8 +34,8 @@ export default async function CoursePage({
   })
   if (!dbUser) redirect('/login')
 
-  const course = await prisma.course.findUnique({
-    where: { id, schoolId: dbUser.schoolId },
+  const course = await prisma.course.findFirst({
+    where: { id, schoolId: dbUser.schoolId, deletedAt: null },
     include: {
       themes: {
         include: {

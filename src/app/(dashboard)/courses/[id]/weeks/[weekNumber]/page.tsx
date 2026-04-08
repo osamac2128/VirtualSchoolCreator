@@ -51,7 +51,7 @@ export default async function WeekPage({
 
   // Verify the course belongs to the user's school before fetching week
   const courseCheck = await prisma.course.findFirst({
-    where: { id, schoolId: dbUser.schoolId },
+    where: { id, schoolId: dbUser.schoolId, deletedAt: null },
     select: { id: true },
   })
   if (!courseCheck) notFound()

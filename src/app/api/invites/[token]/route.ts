@@ -89,8 +89,19 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: true, userId: existingUser.id })
   }
 
-  // Create User and mark invite used in a transaction
+  // Create User and mark invite used in a transaction.
+  // The updateMany with usedAt: null condition is the atomic guard against
+  // concurrent acceptance of the same token (TOCTOU protection).
   const result = await prisma.$transaction(async (tx) => {
+    // Atomically claim the invite — only succeeds if usedAt is still null
+    const claimed = await tx.invite.updateMany({
+      where: { id: invite.id, usedAt: null },
+      data: { usedAt: new Date() },
+    })
+    if (claimed.count === 0) {
+      throw new Error('INVITE_ALREADY_USED')
+    }
+
     const user = await tx.user.create({
       data: {
         supabaseId,
@@ -103,11 +114,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: { id: true },
     })
 
-    await tx.invite.update({
-      where: { id: invite.id },
-      data: { usedAt: new Date() },
-    })
-
     await tx.auditLog.create({
       data: {
         userId: user.id,
@@ -117,7 +123,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
 
     return user
+  }).catch((err: unknown) => {
+    if (err instanceof Error && err.message === 'INVITE_ALREADY_USED') {
+      return null
+    }
+    throw err
   })
+
+  if (!result) {
+    return NextResponse.json({ error: 'This invite has already been used' }, { status: 410 })
+  }
 
   return NextResponse.json({ ok: true, userId: result.id }, { status: 201 })
 }

@@ -81,6 +81,14 @@ export default function InvitePage({
         throw new Error(body.error ?? 'Failed to activate account.')
       }
 
+      // If email confirmation is enabled in Supabase, data.session will be null.
+      // In that case show a "check your email" message rather than redirecting
+      // to /dashboard (which would fail since no active session exists yet).
+      if (!data.session) {
+        setInviteState({ status: 'success' })
+        return
+      }
+
       window.location.href = '/dashboard'
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred. Please try again.')
@@ -192,6 +200,20 @@ export default function InvitePage({
                 {isSubmitting ? 'Creating account...' : 'Create Account'}
               </Button>
             </form>
+          </div>
+        )}
+
+        {inviteState.status === 'success' && (
+          <div className="rounded-xl border border-border bg-card p-8 text-center shadow-sm">
+            <CheckCircle className="mx-auto mb-4 h-12 w-12 text-primary" />
+            <h1 className="text-lg font-semibold text-foreground">Account created!</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Check your email to confirm your account, then{' '}
+              <a href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+                sign in
+              </a>
+              .
+            </p>
           </div>
         )}
       </div>

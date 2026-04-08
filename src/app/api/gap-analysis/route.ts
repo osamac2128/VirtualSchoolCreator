@@ -66,8 +66,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, deletedAt: null },
       include: { themes: { include: { weeks: true } } },
     })
 

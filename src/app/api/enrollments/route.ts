@@ -26,7 +26,7 @@ export async function GET(req: Request) {
 
   // Verify course belongs to the admin/teacher's school
   const course = await prisma.course.findFirst({
-    where: { id: courseId, schoolId: dbUser.schoolId },
+    where: { id: courseId, schoolId: dbUser.schoolId, deletedAt: null },
     select: { id: true },
   })
   if (!course) return NextResponse.json({ error: 'Course not found' }, { status: 404 })

@@ -54,7 +54,7 @@ export async function DELETE(
 
   // --- Verify course belongs to the admin's school ---
   const course = await prisma.course.findFirst({
-    where: { id: courseId, schoolId: adminUser.schoolId },
+    where: { id: courseId, schoolId: adminUser.schoolId, deletedAt: null },
     select: { id: true },
   })
   if (!course) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button-variants'
@@ -68,6 +68,12 @@ export function EnrollmentManager({ courses, initialCourseId, schoolUsers }: Enr
   // Progress reset state per enrollment
   const [resettingProgressId, setResettingProgressId] = useState<string | null>(null)
   const [resetConfirmId, setResetConfirmId] = useState<string | null>(null)
+
+  // Auto-fetch enrollments when initialCourseId is provided on mount
+  useEffect(() => {
+    if (initialCourseId) fetchEnrollments(initialCourseId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Fetch enrollments for a course
   const fetchEnrollments = useCallback(async (courseId: string) => {

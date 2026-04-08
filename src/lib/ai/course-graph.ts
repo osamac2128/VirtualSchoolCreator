@@ -163,14 +163,30 @@ async function persistCourseNode(state: CourseState): Promise<Partial<CourseStat
     })
   }
 
-  // Create Membership for the teacher who uploaded
-  await prisma.membership.create({
-    data: {
-      userId: state.userId,
-      courseId: course.id,
-      role: 'TEACHER'
-    }
+  // Ensure teacher membership exists (upsert-style: create only if absent)
+  const existingMembership = await prisma.membership.findFirst({
+    where: { userId: state.userId, courseId: course.id, role: 'TEACHER' },
   })
+  if (!existingMembership) {
+    await prisma.membership.create({
+      data: { userId: state.userId, courseId: course.id, role: 'TEACHER' },
+    })
+  }
+
+  // On the update path (Inngest retry), wipe existing themes+weeks before
+  // re-creating so we never produce duplicates. Weeks cascade-delete via the
+  // LearningTheme FK (no explicit cascade in schema, so delete weeks first).
+  if (state.courseId) {
+    const existingThemes = await prisma.learningTheme.findMany({
+      where: { courseId: course.id },
+      select: { id: true },
+    })
+    if (existingThemes.length > 0) {
+      const themeIds = existingThemes.map((t) => t.id)
+      await prisma.week.deleteMany({ where: { themeId: { in: themeIds } } })
+      await prisma.learningTheme.deleteMany({ where: { id: { in: themeIds } } })
+    }
+  }
 
   for (const theme of state.themes) {
     const createdTheme = await prisma.learningTheme.create({
