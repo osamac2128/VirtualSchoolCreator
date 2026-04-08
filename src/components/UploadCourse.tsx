@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,19 @@ export default function UploadCourse() {
   const [track, setTrack] = useState('STANDARD')
   const [isUploading, setIsUploading] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+  const [generationPending, setGenerationPending] = useState(false)
+  const [refreshCount, setRefreshCount] = useState(0)
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!generationPending || refreshCount >= 3) return
+    const timer = setTimeout(() => {
+      router.refresh()
+      setRefreshCount(c => c + 1)
+      if (refreshCount >= 2) setGenerationPending(false)
+    }, 15000)
+    return () => clearTimeout(timer)
+  }, [generationPending, refreshCount, router])
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,11 +57,12 @@ export default function UploadCourse() {
         throw new Error(data.error || 'Upload failed')
       }
 
-      setStatus({ type: 'success', message: 'Upload successful! Generation is queued in the background.' })
-      setFile(null)
+      setGenerationPending(true)
       setCourseName('')
       setGradeLevel('')
       setTrack('STANDARD')
+      setFile(null)
+      setStatus({ type: 'success', message: 'Upload successful! Generating your course — this takes 30–60 seconds.' })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred'
       setStatus({ type: 'error', message })
@@ -115,8 +130,15 @@ export default function UploadCourse() {
           </Button>
 
           {status && (
-            <div className={`p-3 rounded text-sm ${status.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+            <div className={`rounded-lg p-3 text-sm ${
+              status.type === 'success'
+                ? 'bg-[var(--status-completed)]/10 text-[var(--status-completed)]'
+                : 'bg-destructive/10 text-destructive'
+            }`}>
               {status.message}
+              {generationPending && (
+                <p className="mt-1 text-xs opacity-70">Refreshing automatically every 15 seconds...</p>
+              )}
             </div>
           )}
         </form>
