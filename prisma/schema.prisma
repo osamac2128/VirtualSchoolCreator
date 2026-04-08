@@ -29,9 +29,10 @@ model User {
   school      School    @relation(fields: [schoolId], references: [id])
   createdAt   DateTime  @default(now())
 
-  memberships Membership[]
-  progress    StudentProgress[]
-  auditLogs   AuditLog[]
+  memberships     Membership[]
+  progress        StudentProgress[]
+  lessonProgress  LessonProgress[]
+  auditLogs       AuditLog[]
 
   // Parent-Student Relations
   children ParentStudent[] @relation("ParentRelation")
@@ -103,9 +104,74 @@ model Week {
   theme     LearningTheme    @relation(fields: [themeId], references: [id])
   resources Resource[]
   progress  StudentProgress[]
+  lessons   Lesson[]
 
   @@index([themeId])
   @@index([courseId, weekNumber])
+}
+
+model Lesson {
+  id          String     @id @default(cuid())
+  weekId      String
+  title       String
+  type        LessonType
+  content     Json       // { url } for VIDEO/PDF/LINK; { html } for TEXT; {} for QUIZ
+  order       Int
+  published   Boolean    @default(false)
+  durationMin Int?
+
+  week     Week             @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  quiz     Quiz?
+  progress LessonProgress[]
+
+  @@index([weekId, order])
+}
+
+model Quiz {
+  id       String @id @default(cuid())
+  lessonId String @unique
+  title    String
+
+  lesson    Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions Question[]
+}
+
+model Question {
+  id     String       @id @default(cuid())
+  quizId String
+  text   String
+  type   QuestionType @default(MULTIPLE_CHOICE)
+  order  Int
+
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([quizId, order])
+}
+
+model Answer {
+  id         String  @id @default(cuid())
+  questionId String
+  text       String
+  isCorrect  Boolean @default(false)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model LessonProgress {
+  id          String         @id @default(cuid())
+  userId      String
+  lessonId    String
+  status      ProgressStatus @default(NOT_STARTED)
+  score       Float?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  lesson Lesson @relation(fields: [lessonId], references: [id])
+
+  @@unique([userId, lessonId])
+  @@index([userId])
 }
 
 model Resource {
@@ -178,6 +244,19 @@ enum ResourceType {
   LINK
   ASSESSMENT
   PDF
+}
+
+enum LessonType {
+  VIDEO
+  PDF
+  TEXT
+  LINK
+  QUIZ
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
 }
 
 enum ProgressStatus {

@@ -16,9 +16,11 @@ import {
   File,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from 'lucide-react'
 import { WeekStatusBadge } from '@/components/WeekStatusBadge'
 import { MarkCompleteButton } from '@/components/MarkCompleteButton'
+import { LessonPlayer } from '@/components/LessonPlayer'
 
 const resourceIcon: Record<string, React.ReactNode> = {
   VIDEO:      <Play className="h-4 w-4 text-[var(--role-admin)]" />,
@@ -69,6 +71,35 @@ export default async function WeekPage({
     prisma.week.findFirst({ where: { courseId: id, weekNumber: weekNum + 1 }, select: { weekNumber: true } }),
   ])
 
+  // Fetch published lessons for this week
+  const lessons = await prisma.lesson.findMany({
+    where: { weekId: week.id, published: true },
+    orderBy: { order: 'asc' },
+    include: {
+      quiz: {
+        include: {
+          questions: {
+            include: { answers: true },
+            orderBy: { order: 'asc' },
+          },
+        },
+      },
+    },
+  })
+
+  // Fetch lesson progress for students
+  const lessonProgressMap = new Map<string, string>()
+  if (dbUser.role === 'STUDENT') {
+    const lp = await prisma.lessonProgress.findMany({
+      where: { userId: dbUser.id, lessonId: { in: lessons.map((l) => l.id) } },
+      select: { lessonId: true, status: true },
+    })
+    for (const p of lp) lessonProgressMap.set(p.lessonId, p.status)
+  }
+
+  // Convert Map to plain object for serialization to client component
+  const lessonProgress: Record<string, string> = Object.fromEntries(lessonProgressMap)
+
   // Fetch student progress for this week
   let weekStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' = 'NOT_STARTED'
   if (dbUser.role === 'STUDENT') {
@@ -85,6 +116,18 @@ export default async function WeekPage({
 
   return (
     <div className="space-y-6">
+      {(dbUser.role === 'TEACHER' || dbUser.role === 'ADMIN') && (
+        <div className="flex items-center justify-end">
+          <Link
+            href={`/courses/${id}/weeks/${weekNumber}/edit`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+            Edit Lessons
+          </Link>
+        </div>
+      )}
+
       <PageHeader
         title={`Week ${week.weekNumber}: ${week.theme.title}`}
         subtitle={week.focus}
@@ -168,6 +211,34 @@ export default async function WeekPage({
 
         {/* Main content */}
         <div className="space-y-6 lg:col-span-2">
+          {/* Lesson player */}
+          {lessons.length > 0 && (
+            <LessonPlayer
+              lessons={lessons.map((l) => ({
+                id: l.id,
+                title: l.title,
+                type: l.type as 'VIDEO' | 'PDF' | 'TEXT' | 'LINK' | 'QUIZ',
+                content: l.content,
+                durationMin: l.durationMin,
+                quiz: l.quiz
+                  ? {
+                      id: l.quiz.id,
+                      title: l.quiz.title,
+                      questions: l.quiz.questions.map((q) => ({
+                        id: q.id,
+                        text: q.text,
+                        type: q.type as 'MULTIPLE_CHOICE' | 'TRUE_FALSE',
+                        answers: q.answers.map((a) => ({ id: a.id, text: a.text })),
+                      })),
+                    }
+                  : null,
+              }))}
+              lessonProgress={lessonProgress}
+              isStudent={dbUser.role === 'STUDENT'}
+              weekId={week.id}
+            />
+          )}
+
           {/* Objectives */}
           <Card>
             <CardHeader className="pb-3">
