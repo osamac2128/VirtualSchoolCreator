@@ -135,18 +135,33 @@ async function generateWeeksNode(state: CourseState): Promise<Partial<CourseStat
 async function persistCourseNode(state: CourseState): Promise<Partial<CourseState>> {
   // Collect all unique AERO alignment codes from all themes
   const allAeroStandards = [...new Set(state.themes.flatMap(t => t.aeroAlignment))]
+  const totalWeeks = state.themes.reduce((acc, t) => acc + t.durationWeeks, 0)
 
-  // Create Course
-  const course = await prisma.course.create({
-    data: {
-      name: state.courseName,
-      gradeLevel: state.gradeLevel,
-      schoolId: state.schoolId,
-      track: state.track as Track,
-      totalWeeks: state.themes.reduce((acc, t) => acc + t.durationWeeks, 0),
-      aeroStandards: allAeroStandards,
-    }
-  })
+  // Update existing stub or create new Course
+  let course: { id: string }
+  if (state.courseId) {
+    course = await prisma.course.update({
+      where: { id: state.courseId },
+      data: {
+        name: state.courseName,
+        gradeLevel: state.gradeLevel,
+        track: state.track as Track,
+        totalWeeks,
+        aeroStandards: allAeroStandards,
+      },
+    })
+  } else {
+    course = await prisma.course.create({
+      data: {
+        name: state.courseName,
+        gradeLevel: state.gradeLevel,
+        schoolId: state.schoolId,
+        track: state.track as Track,
+        totalWeeks,
+        aeroStandards: allAeroStandards,
+      },
+    })
+  }
 
   // Create Membership for the teacher who uploaded
   await prisma.membership.create({
@@ -211,7 +226,7 @@ export const graph = new StateGraph<CourseState>({
 
 export const courseApp = graph.compile()
 
-export async function runCourseGenerationPipeline(rawData: ParsedAtlasRow[], userId: string, schoolId: string, courseName: string, gradeLevel: number, track: string) {
+export async function runCourseGenerationPipeline(rawData: ParsedAtlasRow[], userId: string, schoolId: string, courseName: string, gradeLevel: number, track: string, courseId?: string) {
   const result = await courseApp.invoke({
     rawData,
     userId,
@@ -220,7 +235,8 @@ export async function runCourseGenerationPipeline(rawData: ParsedAtlasRow[], use
     gradeLevel,
     track,
     themes: [],
-    weeksByTheme: {}
+    weeksByTheme: {},
+    courseId,
   })
 
   return result

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { checkRateLimit, getClientIp } from '@/lib/security/rate-limiter'
 import { sanitizeText, isNumericString, isValidTrack } from '@/lib/security/sanitize'
+import { Track } from '@prisma/client'
 
 /** Maximum allowed upload size: 10 MB */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
@@ -114,6 +115,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No valid data extracted from file' }, { status: 400 })
     }
 
+    const parsedGrade = parseInt(gradeLevelStr, 10)
+    const sanitizedName = courseName
+
+    // ── Create Course stub in the database ────────────────────────────────────
+    const course = await prisma.course.create({
+      data: {
+        name: sanitizedName,
+        gradeLevel: parsedGrade,
+        track: track as Track,
+        schoolId: dbUser.schoolId,
+        aeroStandards: [],
+        totalWeeks: 0,
+        status: 'PENDING',
+      },
+    })
+
     // ── Queue background job via Inngest ───────────────────────────────────────
     const { ids } = await inngest.send({
       name: 'course.generate',
@@ -122,12 +139,13 @@ export async function POST(req: Request) {
         userId: dbUser.id,
         schoolId,
         courseName,
-        gradeLevel: parseInt(gradeLevelStr, 10),
+        gradeLevel: parsedGrade,
         track,
+        courseId: course.id,
       },
     })
 
-    return NextResponse.json({ jobId: ids[0] ?? null, message: 'Course generation queued successfully' })
+    return NextResponse.json({ jobId: ids[0] ?? null, courseId: course.id, message: 'Course generation queued successfully' })
   } catch (error: unknown) {
     console.error('Ingest error:', error)
     const message = error instanceof Error ? error.message : 'Internal server error'

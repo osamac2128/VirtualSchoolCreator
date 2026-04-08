@@ -2,6 +2,20 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 
+/**
+ * PATCH /api/progress
+ *
+ * Allows a student to manually update their own week-level progress status
+ * (e.g. marking a week IN_PROGRESS or COMPLETED via the MarkCompleteButton).
+ *
+ * Note: Week progress is also set automatically when all published lessons in
+ * a week are completed — see POST /api/lessons/[lessonId]/complete.
+ *
+ * For admin-initiated progress resets, see:
+ *   DELETE /api/courses/[courseId]/reset-progress?userId=<userId>
+ *
+ * Body: { weekId: string, courseId: string, status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' }
+ */
 export async function PATCH(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -12,6 +26,8 @@ export async function PATCH(req: Request) {
     select: { id: true, role: true, schoolId: true },
   })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 403 })
+
+  // Only students may self-report week progress
   if (dbUser.role !== 'STUDENT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   let body: { weekId?: string; courseId?: string; status?: string }
@@ -46,6 +62,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Week not found' }, { status: 404 })
   }
 
+  // StudentProgress has no @@unique constraint, so use findFirst + create/update
   const existing = await prisma.studentProgress.findFirst({
     where: { userId: dbUser.id, weekId, courseId },
   })

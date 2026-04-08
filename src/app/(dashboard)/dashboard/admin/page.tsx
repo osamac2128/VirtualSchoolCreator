@@ -5,6 +5,8 @@ import UploadCourse from '@/components/UploadCourse'
 import { StatCard } from '@/components/StatCard'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { BookOpen, Users, GraduationCap, UserCheck, Clock } from 'lucide-react'
 
 export default async function AdminDashboard() {
@@ -21,14 +23,14 @@ export default async function AdminDashboard() {
   const { schoolId } = dbUser
 
   const [courseCount, userCount, teacherCount, studentCount, recentLogs] = await Promise.all([
-    prisma.course.count({ where: { schoolId } }),
+    prisma.course.count({ where: { schoolId, deletedAt: null } }),
     prisma.user.count({ where: { schoolId } }),
     prisma.user.count({ where: { schoolId, role: 'TEACHER' } }),
     prisma.user.count({ where: { schoolId, role: 'STUDENT' } }),
     prisma.auditLog.findMany({
       where: { user: { schoolId } },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: 10,
       select: { action: true, details: true, createdAt: true },
     }),
   ])
@@ -81,10 +83,18 @@ export default async function AdminDashboard() {
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4 text-primary" />
-                Recent Activity
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Clock className="h-4 w-4 text-primary" />
+                  Recent Activity
+                </CardTitle>
+                <Link
+                  href="/dashboard/admin/audit-log"
+                  className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                >
+                  View Full Log →
+                </Link>
+              </div>
             </CardHeader>
             <CardContent>
               {recentLogs.length === 0 ? (

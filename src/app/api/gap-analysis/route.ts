@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { ChatOpenAI } from '@langchain/openai'
-import { checkRateLimit, getClientIp } from '@/lib/security/rate-limiter'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/security/rate-limiter'
 import { sanitizeForPrompt } from '@/lib/security/sanitize'
 
 /** Max number of missing standard codes to include in a single prompt */
@@ -11,8 +12,9 @@ const MAX_STANDARDS_IN_PROMPT = 50
 export async function GET(req: Request) {
   // ── Rate limiting ─────────────────────────────────────────────────────────
   const ip = getClientIp(req)
-  const rateLimit = checkRateLimit(`gap-analysis:${ip}`, { limit: 30, windowMs: 60_000 })
-  if (!rateLimit.success) {
+  // 10 requests per minute per IP (stricter than before to protect AI costs)
+  const rateLimit = checkRateLimit(`gap-analysis:${ip}`, 10, 60_000)
+  if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: 'Too many requests. Please slow down.' },
       {
@@ -53,7 +55,7 @@ export async function GET(req: Request) {
     // ── Authorization: ensure caller belongs to the same school as the course ──
     const dbUser = await prisma.user.findUnique({
       where: { supabaseId: user.id },
-      select: { schoolId: true, role: true },
+      select: { id: true, schoolId: true, role: true },
     })
 
     if (!dbUser) {
@@ -97,8 +99,6 @@ export async function GET(req: Request) {
 
     // ── Build prompt with injection guards ────────────────────────────────────
     // Sanitize all user-controlled / DB values before interpolating into the prompt.
-    // Even though gradeLevel is an Int from the DB, we convert to string and wrap
-    // it so the model treats it as data, not as instructions.
     const safeGradeLevel = sanitizeForPrompt(String(course.gradeLevel), 10)
     const safeCodes = missingStandards
       .slice(0, MAX_STANDARDS_IN_PROMPT)
@@ -124,6 +124,22 @@ export async function GET(req: Request) {
         'Keep the response concise (under 100 words).',
       ].join('\n')
     )
+
+    const recommendationText =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+
+    // ── Persist result to AuditLog ─────────────────────────────────────────────
+    await prisma.auditLog.create({
+      data: {
+        userId: dbUser.id,
+        action: 'GAP_ANALYSIS_RUN',
+        details: JSON.stringify({
+          courseId,
+          missingCount: missingStandards.length,
+          aiRecommendation: recommendationText.slice(0, 500),
+        }),
+      },
+    })
 
     return NextResponse.json({
       missingStandards: missingStandards.map((s) => s.code),

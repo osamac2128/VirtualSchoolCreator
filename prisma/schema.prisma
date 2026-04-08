@@ -17,6 +17,7 @@ model School {
 
   users    User[]
   courses  Course[]
+  invites  Invite[]
 }
 
 model User {
@@ -26,6 +27,7 @@ model User {
   name        String
   role        UserRole
   schoolId    String
+  active      Boolean   @default(true)
   school      School    @relation(fields: [schoolId], references: [id])
   createdAt   DateTime  @default(now())
 
@@ -69,6 +71,9 @@ model Course {
   schoolId      String
   aeroStandards Json[]       // [{code: "ELA.11.RL.1", desc: "..."}]
   totalWeeks    Int
+  status        CourseStatus @default(COMPLETE)
+  errorMessage  String?
+  deletedAt     DateTime?    // soft-delete
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -216,6 +221,27 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Invite {
+  id        String    @id @default(cuid())
+  token     String    @unique @default(cuid())
+  email     String
+  role      UserRole
+  name      String
+  schoolId  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@index([schoolId])
 }
 
 enum UserRole {
@@ -263,4 +289,11 @@ enum ProgressStatus {
   NOT_STARTED
   IN_PROGRESS
   COMPLETED
+}
+
+enum CourseStatus {
+  PENDING
+  PROCESSING
+  COMPLETE
+  FAILED
 }

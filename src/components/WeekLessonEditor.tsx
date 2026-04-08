@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -138,6 +138,18 @@ export function WeekLessonEditor({
   const [error, setError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Warn the user if they try to navigate away with an open/dirty form
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasUnsavedChanges])
 
   // Use a local ordered copy for optimistic up/down moves; server is source of
   // truth after each mutation via router.refresh()
@@ -161,6 +173,8 @@ export function WeekLessonEditor({
     setForm(EMPTY_FORM)
     setError(null)
     setFormMode('new')
+    // Form is open but empty — no unsaved changes yet
+    setHasUnsavedChanges(false)
   }
 
   function openEdit(lesson: Lesson) {
@@ -172,11 +186,26 @@ export function WeekLessonEditor({
     })
     setError(null)
     setFormMode(lesson.id)
+    // An edit form is open — treat as unsaved changes immediately
+    setHasUnsavedChanges(true)
   }
 
   function closeForm() {
     setFormMode(null)
     setError(null)
+    setHasUnsavedChanges(false)
+  }
+
+  // Called by LessonForm whenever a field value changes
+  function handleFormChange(f: FormState) {
+    setForm(f)
+    // Mark dirty as soon as the user types anything in the add form
+    // (edit forms are already marked dirty when opened)
+    const isDirty =
+      f.title.trim() !== '' ||
+      f.content.trim() !== '' ||
+      f.durationMin.trim() !== ''
+    setHasUnsavedChanges(formMode === 'new' ? isDirty : true)
   }
 
   function buildContent(type: LessonType, rawContent: string): Record<string, unknown> {
@@ -231,6 +260,7 @@ export function WeekLessonEditor({
         return
       }
 
+      setHasUnsavedChanges(false)
       closeForm()
       refresh()
     } finally {
@@ -455,7 +485,7 @@ export function WeekLessonEditor({
                   {isEditing && (
                     <LessonForm
                       form={form}
-                      onChange={setForm}
+                      onChange={handleFormChange}
                       onSave={handleSave}
                       onCancel={closeForm}
                       error={error}
@@ -477,7 +507,7 @@ export function WeekLessonEditor({
           <div className={lessons.length > 0 ? 'border-t border-border' : ''}>
             <LessonForm
               form={form}
-              onChange={setForm}
+              onChange={handleFormChange}
               onSave={handleSave}
               onCancel={closeForm}
               error={error}

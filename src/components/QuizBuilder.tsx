@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,19 +45,26 @@ interface Props {
   lessonId: string
   lessonTitle: string
   existingQuiz: QuizData | null
+  onQuizDeleted?: () => void
 }
 
 // ---------------------------------------------------------------------------
-// Draft shapes (local state, ids are temp strings for new items)
+// Draft shapes — ids are optional (absent for new items, present for existing)
 // ---------------------------------------------------------------------------
 
 interface DraftAnswer {
+  /** Absent for brand-new answers not yet in the DB */
+  id?: string
+  /** Stable React key — the DB id for existing answers, a temp uid for new ones */
   _key: string
   text: string
   isCorrect: boolean
 }
 
 interface DraftQuestion {
+  /** Absent for brand-new questions not yet in the DB */
+  id?: string
+  /** Stable React key */
   _key: string
   text: string
   type: QuestionType
@@ -96,10 +104,12 @@ function makeQuestion(): DraftQuestion {
 
 function fromExistingQuestion(q: QuestionData): DraftQuestion {
   return {
+    id: q.id,
     _key: q.id,
     text: q.text,
     type: q.type,
     answers: q.answers.map((a) => ({
+      id: a.id,
       _key: a.id,
       text: a.text,
       isCorrect: a.isCorrect,
@@ -111,7 +121,8 @@ function fromExistingQuestion(q: QuestionData): DraftQuestion {
 // Component
 // ---------------------------------------------------------------------------
 
-export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
+export function QuizBuilder({ lessonId, lessonTitle, existingQuiz, onQuizDeleted }: Props) {
+  const router = useRouter()
   const isUpdate = existingQuiz !== null
 
   const [quizTitle, setQuizTitle] = useState<string>(
@@ -126,6 +137,7 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   // -------------------------------------------------------------------------
   // Question mutations
@@ -141,12 +153,12 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
     setSuccess(false)
   }
 
-  function updateQuestion(key: string, patch: Partial<Omit<DraftQuestion, '_key'>>) {
+  function updateQuestion(key: string, patch: Partial<Omit<DraftQuestion, '_key' | 'id'>>) {
     setQuestions((prev) =>
       prev.map((q) => {
         if (q._key !== key) return q
         const updated = { ...q, ...patch }
-        // When changing type, reset answers
+        // When changing type, reset answers (new items — no DB ids)
         if (patch.type && patch.type !== q.type) {
           updated.answers = makeDefaultAnswers(patch.type)
         }
@@ -244,7 +256,7 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
   }
 
   // -------------------------------------------------------------------------
-  // Save
+  // Save (create or update)
   // -------------------------------------------------------------------------
 
   async function handleSave() {
@@ -259,25 +271,53 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
 
     setBusy(true)
     try {
-      const payload = {
-        lessonId,
-        title: quizTitle.trim(),
-        questions: questions.map((q, idx) => ({
-          text: q.text.trim(),
-          type: q.type,
-          order: idx + 1,
-          answers: q.answers.map((a) => ({
-            text: a.text.trim(),
-            isCorrect: a.isCorrect,
-          })),
-        })),
-      }
+      let res: Response
 
-      const res = await fetch('/api/quizzes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      if (isUpdate) {
+        // PATCH — update existing quiz
+        const payload = {
+          title: quizTitle.trim(),
+          questions: questions.map((q, idx) => ({
+            // Only include id when it refers to an existing DB record
+            ...(q.id ? { id: q.id } : {}),
+            text: q.text.trim(),
+            type: q.type,
+            order: idx + 1,
+            answers: q.answers.map((a) => ({
+              ...(a.id ? { id: a.id } : {}),
+              text: a.text.trim(),
+              isCorrect: a.isCorrect,
+            })),
+          })),
+        }
+
+        res = await fetch(`/api/quizzes/${existingQuiz.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      } else {
+        // POST — create new quiz
+        const payload = {
+          lessonId,
+          title: quizTitle.trim(),
+          questions: questions.map((q, idx) => ({
+            text: q.text.trim(),
+            type: q.type,
+            order: idx + 1,
+            answers: q.answers.map((a) => ({
+              text: a.text.trim(),
+              isCorrect: a.isCorrect,
+            })),
+          })),
+        }
+
+        res = await fetch('/api/quizzes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      }
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -286,6 +326,36 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
       }
 
       setSuccess(true)
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Delete quiz
+  // -------------------------------------------------------------------------
+
+  async function handleDelete() {
+    if (!existingQuiz) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/quizzes/${existingQuiz.id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError((data as { error?: string }).error ?? 'Delete failed.')
+        setDeleteConfirm(false)
+        return
+      }
+      setDeleteConfirm(false)
+      if (onQuizDeleted) {
+        onQuizDeleted()
+      } else {
+        router.refresh()
+      }
     } finally {
       setBusy(false)
     }
@@ -297,14 +367,6 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Existing quiz notice */}
-      {isUpdate && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-          This lesson already has a quiz. To update it, delete the lesson and recreate it.
-          The form below will create a new quiz if none exists.
-        </div>
-      )}
-
       {/* Quiz title */}
       <div className="space-y-1.5">
         <Label htmlFor="quiz-title" className="text-sm font-medium">
@@ -318,7 +380,7 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
             setSuccess(false)
           }}
           placeholder="e.g. Week 3 Comprehension Quiz"
-          disabled={busy || isUpdate}
+          disabled={busy}
           className="max-w-lg"
         />
       </div>
@@ -330,7 +392,7 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
             key={q._key}
             question={q}
             index={qIdx}
-            disabled={busy || isUpdate}
+            disabled={busy}
             onUpdateQuestion={(patch) => updateQuestion(q._key, patch)}
             onRemoveQuestion={() => removeQuestion(q._key)}
             onAddAnswer={() => addAnswer(q._key)}
@@ -342,17 +404,15 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
       </div>
 
       {/* Add question */}
-      {!isUpdate && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={addQuestion}
-          disabled={busy}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add Question
-        </Button>
-      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={addQuestion}
+        disabled={busy}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Add Question
+      </Button>
 
       {/* Error / success */}
       {error && (
@@ -369,12 +429,49 @@ export function QuizBuilder({ lessonId, lessonTitle, existingQuiz }: Props) {
         </p>
       )}
 
-      {/* Save */}
-      {!isUpdate && (
+      {/* Action row */}
+      <div className="flex items-center gap-3">
         <Button onClick={handleSave} disabled={busy}>
-          {busy ? 'Saving…' : 'Save Quiz'}
+          {busy ? 'Saving…' : isUpdate ? 'Save Changes' : 'Save Quiz'}
         </Button>
-      )}
+
+        {/* Delete — only shown in edit mode */}
+        {isUpdate && (
+          <>
+            {deleteConfirm ? (
+              <span className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Delete this quiz?</span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={handleDelete}
+                  className="rounded bg-destructive/10 px-3 py-1 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                >
+                  {busy ? 'Deleting…' : 'Confirm Delete'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDeleteConfirm(false)}
+                  className="rounded px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setDeleteConfirm(true)}
+                disabled={busy}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Quiz
+              </Button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -387,7 +484,7 @@ interface QuestionCardProps {
   question: DraftQuestion
   index: number
   disabled: boolean
-  onUpdateQuestion: (patch: Partial<Omit<DraftQuestion, '_key'>>) => void
+  onUpdateQuestion: (patch: Partial<Omit<DraftQuestion, '_key' | 'id'>>) => void
   onRemoveQuestion: () => void
   onAddAnswer: () => void
   onRemoveAnswer: (answerKey: string) => void
@@ -431,7 +528,10 @@ function QuestionCard({
       <CardContent className="pt-4 space-y-4">
         {/* Question text */}
         <div className="space-y-1.5">
-          <Label htmlFor={`q-text-${question._key}`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <Label
+            htmlFor={`q-text-${question._key}`}
+            className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+          >
             Question
           </Label>
           <Input
@@ -445,7 +545,10 @@ function QuestionCard({
 
         {/* Question type */}
         <div className="space-y-1.5">
-          <Label htmlFor={`q-type-${question._key}`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <Label
+            htmlFor={`q-type-${question._key}`}
+            className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+          >
             Type
           </Label>
           <Select

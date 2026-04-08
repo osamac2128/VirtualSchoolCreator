@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
+  Lock,
 } from 'lucide-react'
 import { WeekStatusBadge } from '@/components/WeekStatusBadge'
 import { MarkCompleteButton } from '@/components/MarkCompleteButton'
@@ -64,6 +65,54 @@ export default async function WeekPage({
   })
 
   if (!week) notFound()
+
+  // Sequential gating: students cannot access a week until the previous week is COMPLETED.
+  // Week 1 is always accessible (no prior week to gate on).
+  let isLocked = false
+  if (dbUser.role === 'STUDENT' && weekNum > 1) {
+    const prevWeek = await prisma.week.findFirst({
+      where: { courseId: id, weekNumber: weekNum - 1 },
+      select: { id: true },
+    })
+    if (prevWeek) {
+      const prevProgress = await prisma.studentProgress.findFirst({
+        where: { userId: dbUser.id, weekId: prevWeek.id },
+        select: { status: true },
+      })
+      isLocked = (prevProgress?.status ?? 'NOT_STARTED') !== 'COMPLETED'
+    }
+  }
+
+  // Render the locked state for students who haven't completed the previous week
+  if (isLocked) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={`Week ${week.weekNumber}: ${week.theme.title}`}
+          subtitle={week.focus}
+          breadcrumb={[
+            { label: 'Courses', href: '/dashboard' },
+            { label: week.theme.title, href: `/courses/${id}` },
+          ]}
+        />
+        <div className="rounded-xl border border-border bg-muted/30 px-8 py-20 text-center">
+          <Lock className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
+          <h2 className="text-lg font-semibold text-foreground">This week is locked</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Complete Week {weekNum - 1} before accessing this week&apos;s content.
+          </p>
+          <div className="mt-6">
+            <Link
+              href={`/courses/${id}/weeks/${weekNum - 1}`}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Go to Week {weekNum - 1}
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Adjacent weeks for navigation
   const [prevWeek, nextWeek] = await Promise.all([

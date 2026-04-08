@@ -13,6 +13,7 @@ import {
   UserPlus,
   Users2,
   Settings,
+  ScrollText,
   ChevronDown,
   Menu,
   X,
@@ -37,6 +38,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { label: 'Invite Users', href: '/dashboard/admin/users/invite', icon: <UserPlus className="h-4 w-4" /> },
     { label: 'Enrollments',  href: '/dashboard/admin/enrollments',  icon: <Users2 className="h-4 w-4" /> },
     { label: 'Settings',    href: '/dashboard/admin/settings',    icon: <Settings className="h-4 w-4" /> },
+    { label: 'Audit Log',  href: '/dashboard/admin/audit-log',   icon: <ScrollText className="h-4 w-4" /> },
   ],
   TEACHER: [
     { label: 'My Courses', href: '/dashboard/teacher', icon: <BookOpen className="h-4 w-4" /> },

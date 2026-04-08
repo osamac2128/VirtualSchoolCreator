@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { buttonVariants } from '@/components/ui/button'
 import { PageHeader } from '@/components/PageHeader'
 import { notFound, redirect } from 'next/navigation'
-import { CalendarDays, BookOpen, ArrowRight, Layers } from 'lucide-react'
+import { CalendarDays, BookOpen, ArrowRight, Layers, Lock } from 'lucide-react'
 import { WeekStatusBadge } from '@/components/WeekStatusBadge'
 
 const trackLabels: Record<string, string> = {
@@ -86,6 +86,24 @@ export default async function CoursePage({
     }
   }
 
+  // Sequential gating: a week is locked if the previous week is not yet completed.
+  // Only applies to students viewing their own progress.
+  const lockedWeekNumbers = new Set<number>()
+  if (dbUser.role === 'STUDENT') {
+    // Flatten all weeks across themes, sorted by weekNumber
+    const allWeeks = course.themes
+      .flatMap((t) => t.weeks)
+      .sort((a, b) => a.weekNumber - b.weekNumber)
+
+    for (let i = 1; i < allWeeks.length; i++) {
+      const prevWeek = allWeeks[i - 1]
+      const prevStatus = progressByWeek.get(prevWeek.id) ?? 'NOT_STARTED'
+      if (prevStatus !== 'COMPLETED') {
+        lockedWeekNumbers.add(allWeeks[i].weekNumber)
+      }
+    }
+  }
+
   return (
     <div className="space-y-8">
       {viewingStudentName && (
@@ -140,40 +158,68 @@ export default async function CoursePage({
 
             {/* Week grid */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {theme.weeks.map((week) => (
-                <Card key={week.id} className="group relative flex flex-col hover:shadow-md transition-shadow">
-                  {/* Week number — top right */}
-                  <span className="absolute right-3 top-3 text-3xl font-bold text-muted/60 leading-none select-none">
-                    {week.weekNumber}
-                  </span>
-                  <CardHeader className="pb-2 pr-12">
-                    <CardDescription className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
-                      Week {week.weekNumber}
-                    </CardDescription>
-                    <CardTitle className="text-sm leading-snug line-clamp-2">{week.focus}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 pb-3 space-y-2">
-                    {Array.isArray(week.objectives) && week.objectives.length > 0 && (
-                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        {(week.objectives as unknown[]).length} objectives
+              {theme.weeks.map((week) => {
+                const isLocked = lockedWeekNumbers.has(week.weekNumber)
+                return (
+                  <Card
+                    key={week.id}
+                    className={`group relative flex flex-col hover:shadow-md transition-shadow${isLocked ? ' opacity-60' : ''}`}
+                  >
+                    {/* Week number — top right */}
+                    <span className="absolute right-3 top-3 text-3xl font-bold text-muted/60 leading-none select-none">
+                      {week.weekNumber}
+                    </span>
+
+                    {/* Lock overlay icon for locked weeks */}
+                    {isLocked && (
+                      <span
+                        className="absolute left-3 top-3"
+                        title={`Complete Week ${week.weekNumber - 1} first`}
+                      >
+                        <Lock className="h-4 w-4 text-muted-foreground/60" />
                       </span>
                     )}
-                    {(dbUser.role === 'STUDENT' || (dbUser.role === 'PARENT' && viewingStudentName)) && (
-                      <WeekStatusBadge
-                        status={(progressByWeek.get(week.id) ?? 'NOT_STARTED') as 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'}
-                      />
-                    )}
-                  </CardContent>
-                  <div className="border-t border-border px-4 py-2.5">
-                    <Link
-                      href={`/courses/${course.id}/weeks/${week.weekNumber}`}
-                      className="inline-flex items-center text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-                    >
-                      View Plan <ArrowRight className="ml-1 h-3 w-3" />
-                    </Link>
-                  </div>
-                </Card>
-              ))}
+
+                    <CardHeader className="pb-2 pr-12">
+                      <CardDescription className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
+                        Week {week.weekNumber}
+                      </CardDescription>
+                      <CardTitle className="text-sm leading-snug line-clamp-2">{week.focus}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-1 pb-3 space-y-2">
+                      {Array.isArray(week.objectives) && week.objectives.length > 0 && (
+                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          {(week.objectives as unknown[]).length} objectives
+                        </span>
+                      )}
+                      {(dbUser.role === 'STUDENT' || (dbUser.role === 'PARENT' && viewingStudentName)) && (
+                        <WeekStatusBadge
+                          status={(progressByWeek.get(week.id) ?? 'NOT_STARTED') as 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'}
+                        />
+                      )}
+                    </CardContent>
+                    <div className="border-t border-border px-4 py-2.5">
+                      {isLocked ? (
+                        // Locked weeks: render a non-interactive span instead of a link
+                        <span
+                          className="inline-flex items-center text-xs font-medium text-muted-foreground/50 cursor-not-allowed"
+                          title={`Complete Week ${week.weekNumber - 1} first`}
+                        >
+                          <Lock className="mr-1 h-3 w-3" />
+                          Locked
+                        </span>
+                      ) : (
+                        <Link
+                          href={`/courses/${course.id}/weeks/${week.weekNumber}`}
+                          className="inline-flex items-center text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                        >
+                          View Plan <ArrowRight className="ml-1 h-3 w-3" />
+                        </Link>
+                      )}
+                    </div>
+                  </Card>
+                )
+              })}
             </div>
           </section>
         ))}

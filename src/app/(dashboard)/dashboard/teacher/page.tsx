@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { buttonVariants } from '@/components/ui/button'
 import { PageHeader } from '@/components/PageHeader'
 import { StatCard } from '@/components/StatCard'
-import { BookOpen, CalendarDays, ArrowRight } from 'lucide-react'
+import { BookOpen, CalendarDays, ArrowRight, Users } from 'lucide-react'
 
 const trackColors: Record<string, string> = {
   STANDARD: 'bg-primary',
@@ -112,9 +112,12 @@ export default async function TeacherDashboard() {
                     </span>
                   </div>
                 </CardContent>
-                <CardFooter className="border-t border-border pt-3">
-                  <Link href={`/courses/${course.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' }) + ' w-full'}>
+                <CardFooter className="border-t border-border pt-3 flex gap-2">
+                  <Link href={`/courses/${course.id}`} className={buttonVariants({ variant: 'outline', size: 'sm' }) + ' flex-1'}>
                     View Course <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Link>
+                  <Link href={`/dashboard/teacher/courses/${course.id}/roster`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                    Roster <Users className="ml-1 h-3.5 w-3.5" />
                   </Link>
                 </CardFooter>
               </Card>
