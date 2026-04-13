@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import { PageHeader } from '@/components/PageHeader'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
