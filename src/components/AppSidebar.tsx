@@ -98,7 +98,11 @@ export function AppSidebar({ role, userName, schoolName }: AppSidebarProps) {
         </div>
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+            const isActive =
+              pathname === item.href ||
+              pathname.startsWith(item.href + '/') ||
+              (item.href === '/dashboard/teacher' && pathname.startsWith('/courses/')) ||
+              (item.href === '/dashboard/student' && pathname.startsWith('/courses/'))
             return (
               <li key={item.label}>
                 <Link

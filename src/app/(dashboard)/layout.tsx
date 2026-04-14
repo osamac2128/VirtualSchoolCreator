@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
-import { AppSidebar } from '@/components/AppSidebar'
+import { DashboardShell } from '@/components/DashboardShell'
 
 export default async function DashboardLayout({
   children,
@@ -29,17 +29,12 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <AppSidebar
-        role={dbUser.role}
-        userName={dbUser.name}
-        schoolName={dbUser.school.name}
-      />
-      <main className="flex-1 overflow-y-auto bg-background">
-        <div className="px-6 py-8 lg:px-8">
-          {children}
-        </div>
-      </main>
-    </div>
+    <DashboardShell
+      role={dbUser.role}
+      userName={dbUser.name}
+      schoolName={dbUser.school.name}
+    >
+      {children}
+    </DashboardShell>
   )
 }

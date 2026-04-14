@@ -149,7 +149,7 @@ export default async function CoursePage({
         {course.themes.map((theme) => (
           <section key={theme.id}>
             {/* Theme header with amber left border */}
-            <div className="mb-4 flex items-center gap-3 border-l-4 border-[var(--accent)] pl-4">
+            <div className="mb-4 flex items-center gap-3 border-l-[5px] border-[var(--accent)] bg-[var(--accent)]/5 rounded-r-lg px-4 py-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-foreground">{theme.title}</h2>
                 <p className="text-sm text-muted-foreground">{theme.durationWeeks} weeks</p>
@@ -163,7 +163,7 @@ export default async function CoursePage({
                 return (
                   <Card
                     key={week.id}
-                    className={`group relative flex flex-col hover:shadow-md transition-shadow${isLocked ? ' opacity-60' : ''}`}
+                    className={`group relative flex flex-col transition-all${isLocked ? ' opacity-60' : ' hover:shadow-md hover:-translate-y-0.5 cursor-pointer'}`}
                   >
                     {/* Week number — top right */}
                     <span className="absolute right-3 top-3 text-3xl font-bold text-muted/60 leading-none select-none">

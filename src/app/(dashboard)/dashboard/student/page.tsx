@@ -58,7 +58,7 @@ export default async function StudentDashboard() {
 
       {/* Overall progress banner */}
       {courses.length > 0 && (
-        <Card className="bg-primary text-primary-foreground border-0">
+        <Card className="bg-primary text-primary-foreground border-0 shadow-md">
           <CardContent className="flex items-center gap-6 p-6">
             <ProgressRing percent={overallPercent} size={80} strokeWidth={7} />
             <div>

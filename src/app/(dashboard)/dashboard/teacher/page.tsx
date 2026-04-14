@@ -84,7 +84,7 @@ export default async function TeacherDashboard() {
             return (
               <Card key={course.id} className="flex flex-col overflow-hidden">
                 {/* Track color stripe */}
-                <div className={`h-1.5 w-full ${trackColor}`} />
+                <div className={`h-2 w-full ${trackColor}`} />
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-base leading-snug">{course.name}</CardTitle>
